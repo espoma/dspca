@@ -451,7 +451,7 @@ class DSPCA:
                     )
             
             # First component: proportion of total features
-            K[0] = int(self.sparsity_levels[0] * n_features)
+            K[0] = int(self.sparsity_levels[0] * self.max_sensors)
             
             # Subsequent components: proportion of previous component
             for i in range(1, len(self.sparsity_levels)):
