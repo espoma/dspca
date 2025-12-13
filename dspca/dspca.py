@@ -33,8 +33,12 @@ class DSPCA:
         Sparsity levels for each component. Can be specified as:
         - List of integers: Exact number of features for each component
         - List of floats: Proportions (0 < x <= 1) relative to previous component
+        - Must be strictly decreasing and match n_components in length.
         If None, must be set before calling fit().
         
+    max_sensors : int
+        Maximum number of sensors (features) to use to build all the new principal components. Must be a positive integer.
+
     Attributes
     ----------
     components_ : list of list of int
@@ -45,13 +49,16 @@ class DSPCA:
         
     feature_names_ : np.ndarray
         Names of the features in the input data.
+
+    total_variance : float
+        Total variance of the input data.
         
     Examples
     --------
     >>> import numpy as np
     >>> from dspca import DSPCA
     >>> X = np.random.randn(100, 50)
-    >>> dspca = DSPCA(n_components=3, sparsity_levels=[20, 15, 10])
+    >>> dspca = DSPCA(n_components=3, sparsity_levels=[20, 15, 10], max_sensors=30)
     >>> dspca.fit(X)
     >>> print(f"Explained variance: {dspca.explained_variance_}")
     
@@ -59,11 +66,12 @@ class DSPCA:
     -----
     The algorithm iteratively selects features using:
     1. Forward Variable Selection (FVS): Greedily adds features that maximize variance
-    2. Backward Variable Elimination (BVE): Removes features that minimize variance loss
+    2. Backward Variable Elimination (BVE): Removes features whose absence increases variance
+    The process continues until the desired sparsity levels are met for each component.
     
     References
     ----------
-    .. [1] Your paper reference here
+    .. [1] Wang, Tianhui, et al. "Dynamic sparse PCA: a dimensional reduction method for sensor data in virtual metrology." Expert Systems with Applications 251 (2024): 123995.
     """
     
     def __init__(
@@ -95,7 +103,44 @@ class DSPCA:
             raise ValueError(
                 f"n_components must be a positive integer, got {n_components}"
             )
-            
+
+        if not isinstance(sparsity_levels, list) or not all(isinstance(x, (int, float)) for x in sparsity_levels):
+            raise ValueError(
+                "sparsity_levels must be a list of integers or floats"
+            )
+
+        if not isinstance(max_sensors, int) or max_sensors <= 0:
+            raise ValueError(
+                f"max_sensors must be a positive integer, got {max_sensors}"
+            )
+
+        if any(sparsity_levels[i] < 0 for i in range(len(sparsity_levels))):
+            raise ValueError(
+                "sparsity_levels must be a list of non-negative integers or floats"
+            )
+
+        if (any(sparsity_level > 1 and not isinstance(sparsity_level, int) for sparsity_level in sparsity_levels)):
+            raise ValueError(
+                "sparsity_levels must be a list of non-negative integers or floats between 0 and 1"
+            )
+
+        if len(sparsity_levels) != n_components:
+            raise ValueError(
+                "sparsity_levels must have the same length as n_components"
+            )
+
+        if isinstance(sparsity_levels, int):
+            for n in range(1, len(sparsity_levels)):
+                if (sparsity_levels[n] >= sparsity_levels[n-1]):
+                    raise ValueError(
+                        "Sparsity levels as integers should be strictly decreasing with the components"
+                    )
+
+        if (max(sparsity_levels) > max_sensors):
+            raise ValueError(
+                f"Sparsity levels cannot include a number of features larger than max_sensors: {max_sensors}"
+            )
+
         self.n_components = n_components
         self.sparsity_levels = sparsity_levels
         self.max_sensors = max_sensors

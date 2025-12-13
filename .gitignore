@@ -83,3 +83,10 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Various
+BUGFIX_DEFLATION.md
+MWE_README.md
+SUMMARY.md
+how-to-make-python-package.md
+notebooks/random-checks.ipynb
