@@ -6,18 +6,13 @@ DSPCA is a Python package for dimensionality reduction using the Dynamic Sparse 
 PCA is a well-oiled machine for dimensionality reduction, but it is not sparse. As such, every principal component is a linear combination of all features, which translates to low interpretability of the PCs based on the original features.
 DSPCA addresses this issue by using a dynamic sparsity approach to select the most relevant features for each principal component. This allows for a more interpretable PCA, as the PCs are based on a subset of the original features. 
 
-DSPCA is particularly helpful when dimensionality reduction needs to be performed on a large number of features as it is often the case with sensor data, and it needs to be paired with a feature selection method.
+DSPCA is particularly helpful when dimensionality reduction needs to be performed on a large number of features as it is often the case with sensor data, and it can be paired with a feature selection method to further improve the interpretability of the PCs.
 
 ## Algorithm
-DSPCA fixes a budget $M$ of a maximum cumulative number of sensors to use for **all** the principal components, and a maximum number of components to calculate, $q$. Each PC will contain a decreasing number of non-zero features $K_j$, $K_1 \geq K_2 \geq \ldots \geq K_q$. This is obtained by building the PCs iteratively, first adding one feature at a time using a greedy algorithm that, given a set of candidate variables CV, selects the feature that maximizes the explained variance (Forward Variable Selection, FVS). CV at step $j$ is chosen either as the set of all the features, or as the set of features selected for the previous PCs, depending on whether the number of non-zero features used in all the previous components $\mathcal{L}_{j-1}$ has exceeded the total budget $M$, $\mathcal{L}_{j-1} \leq M$. 
+DSPCA fixes a budget $M$ of a maximum cumulative number of sensors to use for **all** the principal components, and a maximum number of components to calculate, $q$. Each PC will contain a decreasing number of non-zero features $ K_j $, $ K_1 \geq K_2 \geq \ldots \geq K_q $. This is obtained by building the PCs iteratively, first adding one feature at a time using a greedy algorithm that, given a set of candidate variables CV, selects the feature that maximizes the explained variance (Forward Variable Selection, FVS). CV at step $ j $ is chosen either as the set of all the features, or as the set of features selected for the previous PCs, depending on whether the number of non-zero features used in all the previous components, that is $ \mathcal{L}_{j-1} \leq M $. 
 
 Then, using Backward Variable Elimination (BVE), features are removed one by one (till a minimum of two features for a given PC) to check if the explained variance increases, which means that the system was previously in a local minima. BVE is helpful to avoid nesting effects due to the greedy algorithm and explores the space of possible solutions, allowing to find a near-optimal minimum. Importantly, because of BVE, the principal components found by DSPCA will **not be linearly independent**, unlike PCA or sparse PCA.
  
-The algorithm in pseudo code is the following
-
-...
-
-
 ## Installation
 
 ### For Users
