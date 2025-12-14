@@ -104,9 +104,14 @@ class DSPCA:
                 f"n_components must be a positive integer, got {n_components}"
             )
 
-        if not isinstance(sparsity_levels, list) or not all(isinstance(x, (int, float)) for x in sparsity_levels):
+        if not isinstance(sparsity_levels, list):
             raise ValueError(
                 "sparsity_levels must be a list of integers or floats"
+            )
+
+        if not (all(isinstance(sparsity_level, int) for sparsity_level in sparsity_levels) or all(isinstance(sparsity_level, float) for sparsity_level in sparsity_levels)):
+            raise ValueError(
+                "sparsity_levels must be a either a list of all integers or a list of all floats"
             )
 
         if not isinstance(max_sensors, int) or max_sensors <= 0:
@@ -114,9 +119,9 @@ class DSPCA:
                 f"max_sensors must be a positive integer, got {max_sensors}"
             )
 
-        if any(sparsity_levels[i] < 0 for i in range(len(sparsity_levels))):
+        if any(sparsity_levels[i] <= 0 for i in range(len(sparsity_levels))):
             raise ValueError(
-                "sparsity_levels must be a list of non-negative integers or floats"
+                "sparsity_levels must be a list of positive integers or floats"
             )
 
         if (any(sparsity_level > 1 and not isinstance(sparsity_level, int) for sparsity_level in sparsity_levels)):
@@ -129,7 +134,7 @@ class DSPCA:
                 "sparsity_levels must have the same length as n_components"
             )
 
-        if isinstance(sparsity_levels, int):
+        if isinstance(sparsity_levels, list) and all(isinstance(sparsity_level, int) for sparsity_level in sparsity_levels):
             for n in range(1, len(sparsity_levels)):
                 if (sparsity_levels[n] >= sparsity_levels[n-1]):
                     raise ValueError(
@@ -152,6 +157,53 @@ class DSPCA:
         self.feature_names_: Optional[np.ndarray] = None
         self.total_variance: Optional[float] = None
 
+    def _validate_data(self, X: Union[np.ndarray, pd.DataFrame]) -> np.ndarray:
+        """
+        Centralized data validation.
+        
+        Parameters
+        ----------
+        X : np.ndarray or pd.DataFrame
+            Input data.
+            
+        Returns
+        -------
+        X_array : np.ndarray
+            Validated and converted numpy array.
+            
+        Raises
+        ------
+        TypeError
+            If X is not numeric or not array-like.
+        ValueError
+            If X is empty, contains NaNs/Infs, or is not 2D.
+        """
+        # Type Check & Conversion
+        if not isinstance(X, (np.ndarray, pd.DataFrame)):
+            raise TypeError(
+                f"X must be a numpy array or pandas DataFrame, got {type(X)}"
+            )
+        
+        X_array = np.array(X)
+
+        # Empty Check
+        if X_array.size == 0:
+            raise ValueError("Input data is empty")
+
+        # Numeric Type Check
+        if not np.issubdtype(X_array.dtype, np.number):
+            raise TypeError("Input data must be numeric")
+
+        # Finite Check (NaN/Inf)
+        if not np.isfinite(X_array).all():
+            raise ValueError("Input contains NaN or infinite values")
+            
+        # Dimension Check
+        if X_array.ndim != 2:
+             raise ValueError(f"X must be a 2D array, got shape {X_array.shape}")
+
+        return X_array
+
     def _total_variance(self, X: np.ndarray) -> float:
         """
         Compute the total variance of the data.
@@ -166,6 +218,7 @@ class DSPCA:
         total_variance : float
             Total variance of the data.
         """
+        X = self._validate_data(X)
         return np.var(X, axis=0).sum()  
 
     def _compute_max_variance(
@@ -192,16 +245,12 @@ class DSPCA:
         Raises
         ------
         ValueError
-            If X_subset has invalid shape or contains NaN/Inf values.
+            If X_subset is empty.
+        RuntimeError
+            If PCA computation fails.
         """
         if X_subset.shape[1] == 0:
             return 0.0
-            
-        if not np.isfinite(X_subset).all():
-            raise ValueError(
-                "X_subset contains NaN or infinite values. "
-                "Please clean your data before fitting."
-            )
         
         # For single feature, return variance directly
         if X_subset.shape[1] == 1:
@@ -279,8 +328,7 @@ class DSPCA:
                 ) from e
         
         # Select feature with maximum variance
-        best_idx = int(np.argmax([v if isinstance(v, float) else v[0] 
-                                   for v in variances]))
+        best_idx = int(np.argmax([v if isinstance(v, float) else v[0] for v in variances]))
         max_var = variances[best_idx]
         V.append(candidates[best_idx])
         k += 1
@@ -406,36 +454,19 @@ class DSPCA:
         TypeError
             If X is not a numpy array or pandas DataFrame.
         """
-        # Validate input type
-        if not isinstance(X, (np.ndarray, pd.DataFrame)):
-            raise TypeError(
-                f"X must be a numpy array or pandas DataFrame, got {type(X)}"
-            )
+
+        # Validate data
+        X_array = self._validate_data(X)
         
         # Extract feature names
         if hasattr(X, 'columns'):
             self.feature_names_ = np.array(X.columns)
         else:
             self.feature_names_ = np.array(
-                [f'feature_{i}' for i in range(X.shape[1])]
+                [f'feature_{i}' for i in range(X_array.shape[1])]
             )
-        
-        # Convert to numpy array
-        X_array = np.array(X)
 
         self.total_variance = self._total_variance(X_array)
-        
-        # Validate data
-        if X_array.ndim != 2:
-            raise ValueError(
-                f"X must be a 2D array, got shape {X_array.shape}"
-            )
-            
-        if not np.isfinite(X_array).all():
-            raise ValueError(
-                "X contains NaN or infinite values. "
-                "Please clean your data before fitting."
-            )
         
         n_samples, n_features = X_array.shape
         
@@ -449,23 +480,7 @@ class DSPCA:
                 f"n_features ({n_features}) must be >= n_components ({self.n_components})"
             )
         
-        # Validate and process sparsity levels
-        if self.sparsity_levels is None:
-            raise ValueError(
-                "sparsity_levels must be set before calling fit(). "
-                "Provide a list of integers or floats."
-            )
-            
-        if not isinstance(self.sparsity_levels, list):
-            raise TypeError(
-                f"sparsity_levels must be a list, got {type(self.sparsity_levels)}"
-            )
-            
-        if len(self.sparsity_levels) != self.n_components:
-            raise ValueError(
-                f"Length of sparsity_levels ({len(self.sparsity_levels)}) "
-                f"must equal n_components ({self.n_components})"
-            )
+
         
         # Process sparsity levels
         K = np.zeros(self.n_components, dtype=int)
@@ -673,14 +688,17 @@ class DSPCA:
         Raises
         ------
         ValueError
-            If the model has not been fitted or X has wrong number of features.
+            If the model has not been fitted, X has wrong number of features,
+            or X contains NaNs/Infs.
+        TypeError
+            If X is not a numpy array or pandas DataFrame.
         """
         if self.components_ is None:
             raise ValueError(
                 "Model has not been fitted yet. Call fit() before transform()."
             )
         
-        X_array = np.array(X)
+        X_array = self._validate_data(X)
         
         if X_array.shape[1] != len(self.feature_names_):
             raise ValueError(
@@ -715,6 +733,14 @@ class DSPCA:
         -------
         X_transformed : np.ndarray of shape (n_samples, n_components)
             Transformed data.
+            
+        Raises
+        ------
+        ValueError
+            If X has invalid shape, contains NaN/Inf, or sparsity_levels
+            is not properly configured.
+        TypeError
+            If X is not a numpy array or pandas DataFrame.
         """
         return self.fit(X).transform(X)
     
