@@ -63,3 +63,12 @@ X_transformed = model.transform(X)
 print(f"Explained variance: {model.explained_variance_}")
 print(f"Selected features for PC1: {model.components_[0]}")
 ```
+
+## Roadmap
+
+Future releases will focus on the following improvements:
+
+- **MNIST Example**: Demonstrate performance on real-world image data to showcase sparsity.
+- **Visualization Tools**: Add built-in plotting utilities for explained variance and feature selection paths.
+- **Scikit-learn Compatibility**: Ensure full compatibility with `Pipeline` and `GridSearchCV`.
+- **Performance Optimization**: Further optimize Forward Variable Selection (FVS) and Backward Variable Elimination (BVE) for very large datasets (e.g. Bayesian Optimization, Genetic Algorithm).
