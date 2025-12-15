@@ -249,6 +249,8 @@ class DSPCA:
         RuntimeError
             If PCA computation fails.
         """
+        X_subset = self._validate_data(X_subset)
+        
         if X_subset.shape[1] == 0:
             return 0.0
         
