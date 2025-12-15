@@ -50,7 +50,7 @@ class DSPCA:
     feature_names_ : np.ndarray
         Names of the features in the input data.
 
-    total_variance : float
+    total_variance_ : float
         Total variance of the input data.
         
     Examples
@@ -126,7 +126,7 @@ class DSPCA:
 
         if (any(sparsity_level > 1 and not isinstance(sparsity_level, int) for sparsity_level in sparsity_levels)):
             raise ValueError(
-                "sparsity_levels must be a list of non-negative integers or floats between 0 and 1"
+                "sparsity_levels must be a list of positive integers or floats between 0 and 1"
             )
 
         if len(sparsity_levels) != n_components:
@@ -143,7 +143,7 @@ class DSPCA:
 
         if (max(sparsity_levels) > max_sensors):
             raise ValueError(
-                f"Sparsity levels cannot include a number of features larger than max_sensors: {max_sensors}"
+                f"Sparsity levels for any given component cannot include a number of features larger than max_sensors: {max_sensors}"
             )
 
         self.n_components = n_components
@@ -153,9 +153,9 @@ class DSPCA:
         # Attributes set during fit
         self.components_: Optional[List[List[int]]] = None
         self.explained_variance_: Optional[List[float]] = None
-        self.percentage_explained_variance_: Optional[List[float]] = None
+        self.explained_variance_ratio_: Optional[List[float]] = None
         self.feature_names_: Optional[np.ndarray] = None
-        self.total_variance: Optional[float] = None
+        self.total_variance_: Optional[float] = None
 
     def _validate_data(self, X: Union[np.ndarray, pd.DataFrame]) -> np.ndarray:
         """
@@ -466,7 +466,7 @@ class DSPCA:
                 [f'feature_{i}' for i in range(X_array.shape[1])]
             )
 
-        self.total_variance = self._total_variance(X_array)
+        self.total_variance_ = self._total_variance(X_array)
         
         n_samples, n_features = X_array.shape
         
@@ -539,7 +539,7 @@ class DSPCA:
         
         self.components_ = []
         self.explained_variance_ = []
-        self.percentage_explained_variance_ = []
+        self.explained_variance_ratio_ = []
         
         # Fit each component
         for j in range(self.n_components):
@@ -606,7 +606,7 @@ class DSPCA:
                 weights = weights / np.linalg.norm(weights)
                     
                 self.explained_variance_.append(float(Var))
-                self.percentage_explained_variance_.append(float(Var / self.total_variance))
+                self.explained_variance_ratio_.append(float(Var / self.total_variance_))
                 
                 # Deflate the data matrix
                 # Project data onto the principal component
@@ -764,139 +764,3 @@ class DSPCA:
 
 
 
-
-
-    # def _forward_variable_selection(self, X_curr, candidates, k):
-    #     """
-    #     Select k features from candidates using Forward Variable Selection.
-    #     Starts with empty set and greedily adds feature that maximizes variance.
-    #     """
-    #     selected = []
-    #     candidates_list = list(candidates)
-
-    #     # Cap k if larger than available candidates
-    #     k = min(k, len(candidates_list))
-
-    #     for _ in range(k):
-    #         best_feature = -1
-    #         best_variance = -1.0
-
-    #         # Try adding each candidate not yet selected
-    #         for feature in candidates_list:
-    #             if feature in selected:
-    #                 continue
-
-    #             current_subset = selected + [feature]
-    #             X_subset = X_curr[:, current_subset]
-    #             variance = self._compute_max_variance(X_subset)
-
-    #             if variance > best_variance:
-    #                 best_variance = variance
-    #                 best_feature = feature
-
-    #         if best_feature != -1:
-    #             selected.append(best_feature)
-    #         else:
-    #             break
-
-    #     return np.array(selected)
-
-    # def _backward_variable_elimination(self, X_curr, candidates, k):
-    #     """
-    #     Select k features from candidates using Backward Variable Elimination.
-    #     Starts with all candidates and greedily removes feature that minimizes variance loss.
-    #     """
-    #     current_selection = list(candidates)
-    #     num_to_remove = len(candidates) - k
-
-    #     if num_to_remove < 0:  # Should not happen if k <= len(candidates)
-    #         return np.array(candidates)
-
-    #     for _ in range(num_to_remove):
-    #         best_feature_to_remove = -1
-    #         best_variance = -1.0
-
-    #         # Try removing each feature from current selection
-    #         for feature in current_selection:
-    #             temp_selection = [f for f in current_selection if f != feature]
-
-    #             if not temp_selection:
-    #                 variance = 0.0
-    #             else:
-    #                 X_subset = X_curr[:, temp_selection]
-    #                 variance = self._compute_max_variance(X_subset)
-
-    #             # Remove the feature that contributes least
-    #             if variance > best_variance:
-    #                 best_variance = variance
-    #                 best_feature_to_remove = feature
-
-    #         if best_feature_to_remove != -1:
-    #             current_selection.remove(best_feature_to_remove)
-    #         else:
-    #             break
-
-    #     return np.array(current_selection)
-
-    # def fit(self, X):
-    #     """
-    #     Fit the model to X.
-    #     """
-    #     X = np.array(X)
-    #     _, n_features = X.shape
-
-    #     # Default sparsity levels if not provided
-    #     if self.sparsity_levels is None:
-    #         self.sparsity_levels = [
-    #             max(1, n_features - i * (n_features // (self.n_components + 1)))
-    #             for i in range(self.n_components)
-    #         ]
-
-    #     # Validate sparsity levels
-    #     for i in range(1, len(self.sparsity_levels)):
-    #         if self.sparsity_levels[i] > self.sparsity_levels[i - 1]:
-    #             raise ValueError("Sparsity levels must be non-increasing for DSPCA.")
-
-    #     self.components_ = np.zeros((self.n_components, n_features))
-    #     self.explained_variance_ = []
-
-    #     # Center the data
-    #     X_centered = X - np.mean(X, axis=0)
-    #     X_curr = X_centered.copy()
-
-    #     # Initial active set (all features)
-    #     current_active_indices = np.arange(n_features)
-
-    #     for i in range(self.n_components):
-    #         k = self.sparsity_levels[i]
-
-    #         # --- Feature Selection Step (FVS / BVE) ---
-    #         n_candidates = len(current_active_indices)
-    #         if k <= n_candidates / 2:
-    #             selected_indices = self._forward_variable_selection(
-    #                 X_curr, current_active_indices, k
-    #             )
-    #         else:
-    #             selected_indices = self._backward_variable_elimination(
-    #                 X_curr, current_active_indices, k
-    #             )
-
-    #         # Update active indices for the NEXT iteration (Nested Constraint)
-    #         current_active_indices = selected_indices
-
-    #         # --- Component Construction ---
-    #         X_selected = X_curr[:, selected_indices]
-    #         pca_final = PCA(n_components=1)
-    #         pca_final.fit(X_selected)
-
-    #         comp_vector = np.zeros(n_features)
-    #         comp_vector[selected_indices] = pca_final.components_[0]
-    #         self.components_[i, :] = comp_vector
-
-    #         # --- Deflation ---
-    #         projections = X_curr @ comp_vector
-    #         X_curr = X_curr - np.outer(projections, comp_vector)
-
-    #         self.explained_variance_.append(np.var(projections))
-
-    #     return self
