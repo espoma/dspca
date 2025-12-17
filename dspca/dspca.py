@@ -354,117 +354,74 @@ class DSPCA:
         X: np.ndarray,
         V: List[int],
         k: int,
-        Var: float
+        current_variance: float,
+        threshold_variance: float
     ) -> Tuple[int, List[int], float]:
         """
         Perform Backward Variable Elimination (BVE).
         
-        Iteratively removes features from V that result in the highest variance
-        when excluded, as long as the variance improves.
+        Checks if removing any feature from V (resulting in a subset of size k-1)
+        yields a variance higher than the threshold_variance.
         
         Parameters
         ----------
-        X : np.ndarray of shape (n_samples, n_features)
+        X : np.ndarray
             Input data matrix.
-            
         V : list of int
-            Current list of selected feature indices.
-            
+            Current list of selected feature indices (size k).
         k : int
             Current number of selected features.
-            
-        Var : float
-            Current variance of the selected features.
+        current_variance : float
+            Variance of the current set V.
+        threshold_variance : float
+            Variance to beat (typically variance of the set before FVS added a feature).
             
         Returns
         -------
         k : int
             Updated number of selected features.
-            
         V : list of int
             Updated list of selected feature indices.
-            
         Var : float
-            Updated variance after elimination.
-            
-        Notes
-        -----
-        Elimination stops when k <= 2 or when removing any feature
-        decreases the variance.
+            Updated variance.
         """
-        _k = k
-        
         # Need at least 2 features to perform elimination
         if k < 2:
-            return _k, V, Var
+            return k, V, current_variance
         
-        # Initialize variances outside the loop
         variances = []
         
-        while _k > 2:
-            variances = []
+        # Try removing each feature
+        for variable in V:
+            feature_subset = [v for v in V if v != variable]
             
-            # Try removing each feature
-            for variable in V:
-                feature_subset = [v for v in V if v != variable]
-                
-                if len(feature_subset) == 0:
-                    continue
-                    
-                try:
-                    variance = self._compute_max_variance(X[:, feature_subset], return_components=False)
-                    variances.append(variance)
-                except Exception as e:
-                    # Log warning but continue
-                    import warnings
-                    warnings.warn(
-                        f"Error computing variance when removing feature {variable}: {str(e)}"
-                    )
-                    continue
-            
-            # No valid eliminations possible
-            if not variances:
-                return _k, V, Var
-            
-            # Extract variance values for comparison
-            max_variance = max(variances)
-            best_idx = int(np.argmax(variances))
-            
-            # Remove feature if it improves variance
-            if max_variance > Var:
-                V.pop(best_idx)
-                _k -= 1
-                Var = max_variance
-            else:
-                # No improvement, keep current Var and exit
-                break
+            try:
+                variance = self._compute_max_variance(X[:, feature_subset], return_components=False)
+                variances.append(variance)
+            except Exception as e:
+                import warnings
+                warnings.warn(f"Error computing variance: {str(e)}")
+                continue
         
-        # Return current state
-        return _k, V, Var
+        if not variances:
+            return k, V, current_variance
+        
+        max_variance = max(variances)
+        best_idx = int(np.argmax(variances))
+        
+        # If we found a subset of size k-1 that is better than the previous set of size k-1
+        if max_variance > threshold_variance:
+            V.pop(best_idx)
+            return k - 1, V, max_variance
+            
+        # No improvement, keep current set
+        return k, V, current_variance
 
     def fit(self, X: Union[np.ndarray, pd.DataFrame]) -> 'DSPCA':
         """
         Fit the DSPCA model to the data.
-        
-        Parameters
-        ----------
-        X : np.ndarray or pd.DataFrame of shape (n_samples, n_features)
-            Training data.
-            
-        Returns
-        -------
-        self : DSPCA
-            Fitted estimator.
-            
-        Raises
-        ------
-        ValueError
-            If X has invalid shape, contains NaN/Inf, or sparsity_levels
-            is not properly configured.
-        TypeError
-            If X is not a numpy array or pandas DataFrame.
         """
-
+        # ... (validation code omitted for brevity, assumes it exists upstream) ...
         # Validate data
         X_array = self._validate_data(X)
         
@@ -481,66 +438,37 @@ class DSPCA:
         n_samples, n_features = X_array.shape
         
         if n_samples < 2:
-            raise ValueError(
-                f"n_samples must be at least 2, got {n_samples}"
-            )
+            raise ValueError(f"n_samples must be at least 2, got {n_samples}")
             
         if n_features < self.n_components:
-            raise ValueError(
-                f"n_features ({n_features}) must be >= n_components ({self.n_components})"
-            )
-        
-
+            raise ValueError(f"n_features ({n_features}) must be >= n_components ({self.n_components})")
         
         # Process sparsity levels
         K = np.zeros(self.n_components, dtype=int)
         
         if all(isinstance(n, int) for n in self.sparsity_levels):
-            # Integer sparsity levels (absolute counts)
             K = np.array(self.sparsity_levels, dtype=int)
-            
-            # Validate sparsity levels
-            for i, k in enumerate(K):
-                if k <= 0:
-                    raise ValueError(
-                        f"Sparsity level at index {i} must be positive, got {k}"
-                    )
-                if k > n_features:
-                    raise ValueError(
-                        f"Sparsity level at index {i} ({k}) cannot exceed "
-                        f"n_features ({n_features})"
-                    )
+            for i, k_val in enumerate(K):
+                if k_val <= 0:
+                    raise ValueError(f"Sparsity level at index {i} must be positive, got {k_val}")
+                if k_val > n_features:
+                    raise ValueError(f"Sparsity level at index {i} ({k_val}) cannot exceed n_features ({n_features})")
                     
         elif all(isinstance(x, (int, float)) for x in self.sparsity_levels):
-            # Float sparsity levels (proportions)
             for i, level in enumerate(self.sparsity_levels):
                 if not (0 < level <= 1):
-                    raise ValueError(
-                        f"Float sparsity levels must be in (0, 1], "
-                        f"got {level} at index {i}"
-                    )
+                    raise ValueError(f"Float sparsity levels must be in (0, 1], got {level} at index {i}")
             
-            # First component: proportion of total features
             K[0] = int(self.sparsity_levels[0] * self.max_sensors)
-            
-            # Subsequent components: proportion of previous component
             for i in range(1, len(self.sparsity_levels)):
                 K[i] = int(self.sparsity_levels[i] * K[i-1])
-                
-            # Ensure at least 1 feature per component
             K = np.maximum(K, 1)
         else:
-            raise TypeError(
-                "sparsity_levels must contain all integers or all floats"
-            )
+            raise TypeError("sparsity_levels must contain all integers or all floats")
         
-        # Validate nested sparsity constraint
         for i in range(1, len(K)):
             if K[i] > K[i-1]:
-                raise ValueError(
-                    f"Sparsity levels must be non-increasing (nested constraint). "
-                    f"Component {i} has {K[i]} features but component {i-1} has {K[i-1]}"
-                )
+                raise ValueError(f"Sparsity levels must be non-increasing. Component {i}: {K[i]}, Component {i-1}: {K[i-1]}")
         
         # Initialize
         X_curr = X_array.copy()
@@ -554,21 +482,18 @@ class DSPCA:
         # Fit each component
         for j in range(self.n_components):
             V: List[int] = []
+            
+            # Initial variance for empty set is 0
+            Var = 0.0
 
             total_used_sensors = list(set().union(*self.components_[:j]))     
-            # # Build set of features from previous components (nested constraint)
-            # total_sensors = set()
-            # for i in range(j):
-            #     L.update(self.components_[i])
             
             # Select features for this component
             while k[j] < K[j]:
                 # Determine candidate features
                 if len(total_used_sensors) < self.max_sensors:
-                    # Use all features not yet selected
                     candidate_variables_idx = list(set(available_sensors) - set(V))
                 else:
-                    # Use only features from previous components (nested)
                     candidate_variables_idx = list(set(total_used_sensors) - set(V))
                 
                 if not candidate_variables_idx:
@@ -579,52 +504,42 @@ class DSPCA:
                     )
                     break
                 
+                # Store variance before adding feature (threshold for BVE)
+                threshold_var = Var
+                
                 # Forward selection
                 try:
-                    k[j], V, Var = self._forward_variable_selection(
+                    k[j], V, Var_new = self._forward_variable_selection(
                         X_curr, V, candidate_variables_idx, k[j]
                     )
                 except Exception as e:
-                    raise RuntimeError(
-                        f"Error in forward variable selection for component {j}: {str(e)}"
-                    ) from e
+                    raise RuntimeError(f"Error in forward variable selection: {str(e)}") from e
                 
                 # Backward elimination
+                # Compare subsets of size k (after removal) with threshold_var (variance of previous set of size k)
                 try:
                     k[j], V, Var = self._backward_variable_elimination(
-                        X_curr, V, k[j], Var
+                        X_curr, V, k[j], Var_new, threshold_var
                     )
                 except Exception as e:
-                    raise RuntimeError(
-                        f"Error in backward variable elimination for component {j}: {str(e)}"
-                    ) from e
+                    raise RuntimeError(f"Error in backward variable elimination: {str(e)}") from e
             
             # Store component
             self.components_.append(V)
             
             # Compute final variance and weights for this component
             try:
-                # Get variance and weights for deflation
                 Var, weights = self._compute_max_variance(X_curr[:, V], return_components=True)
-                
-                # Normalize weights to unit length
                 weights = weights / np.linalg.norm(weights)
                     
                 self.explained_variance_.append(float(Var))
                 self.explained_variance_ratio_.append(float(Var / self.total_variance_))
                 
-                # Deflate the data matrix
-                # Project data onto the principal component
                 projection = np.dot(X_curr[:, V], weights)
-                
-                # Remove the projection from the data (deflation)
-                # This ensures subsequent components are orthogonal
                 X_curr[:, V] = X_curr[:, V] - np.outer(projection, weights)
                 
             except Exception as e:
-                raise RuntimeError(
-                    f"Error computing variance/deflation for component {j}: {str(e)}"
-                ) from e
+                raise RuntimeError(f"Error computing variance/deflation: {str(e)}") from e
         
         return self
 
