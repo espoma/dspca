@@ -68,23 +68,20 @@ class TestForwardVariableSelection(unittest.TestCase):
             self.dspca._forward_variable_selection(X, V, candidates, k)
 
     def test_tuple_return_from_variance(self):
-        """Test handling when _compute_max_variance returns a tuple (variance, weights)."""
+        """Test handling when _compute_max_variance returns a float (simplified from tuple)."""
         X = np.zeros((10, 5))
         V = []
         candidates = [0, 1]
         k = 0
         
-        # Mock returns: (10.0, weights), (20.0, weights)
-        self.dspca._compute_max_variance.side_effect = [
-            (10.0, np.array([1])), 
-            (20.0, np.array([1]))
-        ]
+        # Mock returns: 10.0, 20.0
+        self.dspca._compute_max_variance.side_effect = [10.0, 20.0]
         
         new_k, new_V, max_var = self.dspca._forward_variable_selection(X, V, candidates, k)
         
         self.assertEqual(new_k, 1)
         self.assertEqual(new_V, [1])
-        self.assertEqual(max_var, (20.0, np.array([1])))
+        self.assertEqual(max_var, 20.0)
 
     def test_real_data_integration(self):
         """Test with real data (no mocking) to ensure integration."""

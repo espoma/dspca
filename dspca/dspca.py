@@ -223,7 +223,8 @@ class DSPCA:
 
     def _compute_max_variance(
         self,
-        X_subset: np.ndarray
+        X_subset: np.ndarray,
+        return_components: bool = False
     ) -> Union[float, Tuple[float, np.ndarray]]:
         """
         Compute the maximum variance for a data subset.
@@ -236,11 +237,14 @@ class DSPCA:
         X_subset : np.ndarray of shape (n_samples, n_features_subset)
             Subset of the data matrix.
             
+        return_components : bool, default=False
+            If True, also return the principal component weights.
+            
         Returns
         -------
         variance : float or tuple of (float, np.ndarray)
-            If n_features_subset == 1: Returns variance as float
-            Otherwise: Returns (variance, principal_component_weights)
+            If return_components is False: Returns variance as float.
+            If return_components is True: Returns (variance, weights).
             
         Raises
         ------
@@ -252,17 +256,25 @@ class DSPCA:
         X_subset = self._validate_data(X_subset)
         
         if X_subset.shape[1] == 0:
-            return 0.0
+            return 0.0 if not return_components else (0.0, np.array([]))
         
-        # For single feature, return variance directly
+        # For single feature
         if X_subset.shape[1] == 1:
-            return float(np.var(X_subset))
+            var = float(np.var(X_subset))
+            if return_components:
+                return var, np.array([1.0])
+            return var
         
         # For multiple features, use PCA to find max variance direction
         try:
             pca = PCA(n_components=1)
             pca.fit(X_subset)
-            return float(pca.explained_variance_[0]), pca.components_[0]
+            var = float(pca.explained_variance_[0])
+            
+            if return_components:
+                return var, pca.components_[0]
+            return var
+            
         except Exception as e:
             raise RuntimeError(
                 f"Failed to compute PCA on subset: {str(e)}"
@@ -274,7 +286,7 @@ class DSPCA:
         V: List[int],
         candidates: List[int],
         k: int
-    ) -> Tuple[int, List[int], Union[float, Tuple[float, np.ndarray]]]:
+    ) -> Tuple[int, List[int], float]:
         """
         Perform Forward Variable Selection (FVS).
         
@@ -303,7 +315,7 @@ class DSPCA:
         V : list of int
             Updated list of selected feature indices.
             
-        max_var : float or tuple
+        max_var : float
             Maximum variance achieved with the selected feature.
             
         Raises
@@ -322,7 +334,7 @@ class DSPCA:
         for variable in candidates:
             feature_subset = V + [variable]
             try:
-                variance = self._compute_max_variance(X[:, feature_subset])
+                variance = self._compute_max_variance(X[:, feature_subset], return_components=False)
                 variances.append(variance)
             except Exception as e:
                 raise RuntimeError(
@@ -330,7 +342,7 @@ class DSPCA:
                 ) from e
         
         # Select feature with maximum variance
-        best_idx = int(np.argmax([v if isinstance(v, float) else v[0] for v in variances]))
+        best_idx = int(np.argmax(variances))
         max_var = variances[best_idx]
         V.append(candidates[best_idx])
         k += 1
@@ -342,8 +354,8 @@ class DSPCA:
         X: np.ndarray,
         V: List[int],
         k: int,
-        Var: Union[float, Tuple[float, np.ndarray]]
-    ) -> Tuple[int, List[int], Union[float, Tuple[float, np.ndarray]]]:
+        Var: float
+    ) -> Tuple[int, List[int], float]:
         """
         Perform Backward Variable Elimination (BVE).
         
@@ -361,7 +373,7 @@ class DSPCA:
         k : int
             Current number of selected features.
             
-        Var : float or tuple
+        Var : float
             Current variance of the selected features.
             
         Returns
@@ -372,7 +384,7 @@ class DSPCA:
         V : list of int
             Updated list of selected feature indices.
             
-        Var : float or tuple
+        Var : float
             Updated variance after elimination.
             
         Notes
@@ -400,7 +412,7 @@ class DSPCA:
                     continue
                     
                 try:
-                    variance = self._compute_max_variance(X[:, feature_subset])
+                    variance = self._compute_max_variance(X[:, feature_subset], return_components=False)
                     variances.append(variance)
                 except Exception as e:
                     # Log warning but continue
@@ -415,18 +427,14 @@ class DSPCA:
                 return _k, V, Var
             
             # Extract variance values for comparison
-            var_values = [v if isinstance(v, float) else v[0] for v in variances]
-            best_idx = int(np.argmax(var_values))
-            max_variance = max(var_values)
-            
-            # Extract current variance value for comparison
-            current_var = Var if isinstance(Var, float) else Var[0]
+            max_variance = max(variances)
+            best_idx = int(np.argmax(variances))
             
             # Remove feature if it improves variance
-            if max_variance > current_var:
+            if max_variance > Var:
                 V.pop(best_idx)
                 _k -= 1
-                Var = variances[best_idx]
+                Var = max_variance
             else:
                 # No improvement, keep current Var and exit
                 break
@@ -596,13 +604,8 @@ class DSPCA:
             
             # Compute final variance and weights for this component
             try:
-                variance_result = self._compute_max_variance(X_curr[:, V])
-                
-                if isinstance(variance_result, tuple):
-                    Var, weights = variance_result
-                else:
-                    Var = variance_result
-                    weights = np.ones(len(V)) / np.sqrt(len(V))
+                # Get variance and weights for deflation
+                Var, weights = self._compute_max_variance(X_curr[:, V], return_components=True)
                 
                 # Normalize weights to unit length
                 weights = weights / np.linalg.norm(weights)

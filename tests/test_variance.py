@@ -80,22 +80,26 @@ class TestDSPCAVariance(unittest.TestCase):
         """Test _compute_max_variance with multiple features."""
         X = np.array([[1, 2], [3, 4], [5, 6]])
         dspca = DSPCA(n_components=1, sparsity_levels=[1], max_sensors=10)
-        result = dspca._compute_max_variance(X)
         
-        # Should return tuple (variance, weights)
-        self.assertIsInstance(result, tuple)
-        var, weights = result
+        # Test default (return_components=False)
+        result = dspca._compute_max_variance(X)
+        self.assertIsInstance(result, float)
+        
+        # Test with return_components=True
+        result_tuple = dspca._compute_max_variance(X, return_components=True)
+        self.assertIsInstance(result_tuple, tuple)
+        var, weights = result_tuple
         
         # Check variance against sklearn PCA
         pca = PCA(n_components=1)
         pca.fit(X)
         expected_var = pca.explained_variance_[0]
         
+        self.assertAlmostEqual(result, expected_var)
         self.assertAlmostEqual(var, expected_var)
         
-        # Check weights properties
+        # Check weights
         self.assertEqual(len(weights), 2)
-        # Weights might be flipped (sign ambiguity), but norm is 1
         self.assertAlmostEqual(np.linalg.norm(weights), 1.0)
 
     def test_compute_max_variance_empty(self):
