@@ -273,8 +273,8 @@ class DSPCA:
         X: np.ndarray,
         V: List[int],
         candidates: List[int],
-        k: float
-    ) -> Tuple[float, List[int], Union[float, Tuple[float, np.ndarray]]]:
+        k: int
+    ) -> Tuple[int, List[int], Union[float, Tuple[float, np.ndarray]]]:
         """
         Perform Forward Variable Selection (FVS).
         
@@ -292,12 +292,12 @@ class DSPCA:
         candidates : list of int
             List of candidate feature indices to consider.
             
-        k : float
+        k : int
             Current number of selected features.
             
         Returns
         -------
-        k : float
+        k : int
             Updated number of selected features (k + 1).
             
         V : list of int
@@ -341,9 +341,9 @@ class DSPCA:
         self,
         X: np.ndarray,
         V: List[int],
-        k: float,
+        k: int,
         Var: Union[float, Tuple[float, np.ndarray]]
-    ) -> Tuple[float, List[int], Union[float, Tuple[float, np.ndarray]]]:
+    ) -> Tuple[int, List[int], Union[float, Tuple[float, np.ndarray]]]:
         """
         Perform Backward Variable Elimination (BVE).
         
@@ -358,7 +358,7 @@ class DSPCA:
         V : list of int
             Current list of selected feature indices.
             
-        k : float
+        k : int
             Current number of selected features.
             
         Var : float or tuple
@@ -366,7 +366,7 @@ class DSPCA:
             
         Returns
         -------
-        k : float
+        k : int
             Updated number of selected features.
             
         V : list of int
