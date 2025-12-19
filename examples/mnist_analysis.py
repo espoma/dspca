@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import time
 import sys
 from pathlib import Path
+from sklearn.model_selection import train_test_split
+
 
 # Add src directory to path
 project_root = Path(__file__).parent.parent
@@ -20,8 +22,8 @@ from dspca import DSPCA
 # Configuration
 # ============================================================================
 DATA_PATH = "/Users/espoma/Desktop/espoma-ml/dspca/data/mnist/mnist.parquet"
-N_COMPONENTS = 5
-SPARSITY_LEVELS = [70, 30, 20, 10, 5]  # Nested sparsity
+N_COMPONENTS = 3
+SPARSITY_LEVELS = [70, 30, 20]  # Nested sparsity
 MAX_SENSORS = 100  # Maximum number of sensors to use
 N_SAMPLES = 1000  # Set to None to use full dataset
 
@@ -33,9 +35,9 @@ print("Loading MNIST data...")
 df = pd.read_parquet(DATA_PATH)
 
 # Extract features and labels
-if 'label' in df.columns:
-    X = df.drop('label', axis=1).values
-    y = df['label'].values
+if 'class' in df.columns:
+    X = df.drop('class', axis=1).values
+    y = df['class'].values
 else:
     X = df.iloc[:, :-1].values
     y = df.iloc[:, -1].values
@@ -48,10 +50,14 @@ print(f"✓ Data loaded: {X.shape[0]} samples, {X.shape[1]} features")
 
 # Use subset if specified
 if N_SAMPLES is not None and N_SAMPLES < X.shape[0]:
-    indices = np.random.choice(X.shape[0], N_SAMPLES, replace=False)
-    X = X[indices]
-    y = y[indices]
-    print(f"✓ Using subset: {X.shape[0]} samples")
+    # Use stratified sampling to ensure all digits are represented proportionally
+    X, _, y, _ = train_test_split(
+        X, y, 
+        train_size=N_SAMPLES, 
+        stratify=y, 
+        random_state=42
+    )
+    print(f"✓ Using stratified subset: {X.shape[0]} samples")
 
 
 # ============================================================================
@@ -79,7 +85,7 @@ print("\n" + "="*70)
 print(" "*25 + "DSPCA RESULTS")
 print("="*70)
 
-print(f"\nTotal variance in data: {dspca.total_variance:.4f}")
+print(f"\nTotal variance in data: {dspca.total_variance_:.4f}")
 print(f"Number of components: {N_COMPONENTS}")
 
 print("\nComponent Details:")
@@ -88,10 +94,10 @@ for i in range(N_COMPONENTS):
     print(f"\n  PC{i+1}:")
     print(f"    Features selected: {len(dspca.components_[i])}")
     print(f"    Explained variance: {dspca.explained_variance_[i]:.4f}")
-    print(f"    Percentage of total variance: {dspca.percentage_explained_variance_[i]*100:.2f}%")
+    print(f"    Percentage of total variance: {dspca.explained_variance_ratio_[i]*100:.2f}%")
 
 # Cumulative variance
-cumulative_pct = np.cumsum([pct * 100 for pct in dspca.percentage_explained_variance_])
+cumulative_pct = np.cumsum([pct * 100 for pct in dspca.explained_variance_ratio_])
 print("\nCumulative Variance:")
 print("-" * 70)
 for i, cum_pct in enumerate(cumulative_pct):
@@ -140,7 +146,7 @@ for bar, val in zip(bars2, dspca.explained_variance_):
 
 # Plot 3: Percentage of explained variance
 ax3 = axes[2]
-variance_pct = [pct * 100 for pct in dspca.percentage_explained_variance_]
+variance_pct = [pct * 100 for pct in dspca.explained_variance_ratio_]
 bars3 = ax3.bar(components, variance_pct, 
                color='coral', alpha=0.7, edgecolor='black', linewidth=1.5)
 ax3.set_xlabel('Component', fontsize=12, fontweight='bold')
