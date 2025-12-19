@@ -152,6 +152,7 @@ class DSPCA:
         
         # Attributes set during fit
         self.components_: Optional[List[List[int]]] = None
+        self.weights_: Optional[List[np.ndarray]] = None
         self.explained_variance_: Optional[List[float]] = None
         self.explained_variance_ratio_: Optional[List[float]] = None
         self.feature_names_: Optional[np.ndarray] = None
@@ -476,6 +477,7 @@ class DSPCA:
         k = np.zeros(self.n_components)
         
         self.components_ = []
+        self.weights_ = []
         self.explained_variance_ = []
         self.explained_variance_ratio_ = []
         
@@ -532,6 +534,7 @@ class DSPCA:
                 Var, weights = self._compute_max_variance(X_curr[:, V], return_components=True)
                 weights = weights / np.linalg.norm(weights)
                     
+                self.weights_.append(weights)
                 self.explained_variance_.append(float(Var))
                 self.explained_variance_ratio_.append(float(Var / self.total_variance_))
                 
@@ -677,9 +680,10 @@ class DSPCA:
             return f"DSPCA(n_components={self.n_components}, not fitted)"
         
         return (
-            f"DSPCA(n_components={self.n_components}, fitted)\n"
-            f"Sparsity per component: {[len(c) for c in self.components_]}\n"
-            f"Explained variance: {self.explained_variance_}"
+            f"DSPCA(n_components={self.n_components}, fitted) \n"
+            f"Sparsity per component: {self.sparsity_levels} \n"
+            f"Explained variance: {self.explained_variance_} \n"
+            f"Explained variance ratio: {self.explained_variance_ratio_}"
         )
 
 
