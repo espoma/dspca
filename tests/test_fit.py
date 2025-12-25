@@ -109,18 +109,18 @@ class TestDSPCAFit(unittest.TestCase):
 
     def test_fit_max_sensors_constraint(self):
         """Test that the total number of unique sensors used does not exceed max_sensors."""
-        # sparsity_levels = [5, 3], max_sensors = 6
-        # Component 0 uses 5 features.
-        # Component 1 uses 3 features.
-        # Total unique features must be <= 6.
-        dspca_constrained = DSPCA(n_components=2, sparsity_levels=[5, 3], max_sensors=6)
-        dspca_constrained.fit(self.X)
+        X = np.random.randn(10, 10)
+        # Component 0 will take 4 features.
+        # Component 1 will then see len(total_used_sensors) == 4.
+        # If max_sensors is 4, it MUST pick from those 4.
+        dspca_constrained = DSPCA(n_components=2, sparsity_levels=[4, 2], max_sensors=4)
+        dspca_constrained.fit(X)
         
         all_features = set()
         for comp in dspca_constrained.components_:
             all_features.update(comp)
         
-        self.assertLessEqual(len(all_features), 6)
+        self.assertLessEqual(len(all_features), 4)
 
     def test_fit_deterministic(self):
         """Test that fitting twice on the same data yields the same result."""
@@ -136,6 +136,17 @@ class TestDSPCAFit(unittest.TestCase):
             dspca1.explained_variance_, 
             dspca2.explained_variance_
         )
+
+    def test_fit_max_sensors_warning(self):
+        """Test fit issues a warning when max_sensors < n_components."""
+        # n_components=3, max_sensors=2
+        # Sparsity levels must be strictly decreasing: [3, 2, 1]
+        dspca = DSPCA(n_components=3, sparsity_levels=[3, 2, 1], max_sensors=3)
+        # Manually trigger the warning condition by setting max_sensors low
+        dspca.max_sensors = 2 
+        with self.assertWarns(UserWarning) as cm:
+            dspca.fit(self.X)
+        self.assertIn("max_sensors (2) is less than n_components (3)", str(cm.warning))
 
 if __name__ == '__main__':
     unittest.main()
