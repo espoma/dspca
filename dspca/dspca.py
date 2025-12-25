@@ -426,6 +426,14 @@ class DSPCA:
         # Validate data
         X_array = self._validate_data(X)
 
+        if self.max_sensors < self.n_components:
+            import warnings
+            warnings.warn(
+                f"max_sensors ({self.max_sensors}) is less than n_components ({self.n_components}). "
+                "This may lead to multiple components having the same support or very few features.",
+                UserWarning
+            )
+
         # Check for sparsity
         sparsity = 1.0 - (np.count_nonzero(X_array) / X_array.size)
         if sparsity > 0.5:
