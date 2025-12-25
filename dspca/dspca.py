@@ -425,6 +425,16 @@ class DSPCA:
         # ... (validation code omitted for brevity, assumes it exists upstream) ...
         # Validate data
         X_array = self._validate_data(X)
+
+        # Check for sparsity
+        sparsity = 1.0 - (np.count_nonzero(X_array) / X_array.size)
+        if sparsity > 0.5:
+            import warnings
+            warnings.warn(
+                f"Input data is already sparse (sparsity: {sparsity:.2f}). "
+                "DSPCA might not be necessary or could behave unexpectedly.",
+                UserWarning
+            )
         
         # Extract feature names
         if hasattr(X, 'columns'):
@@ -450,21 +460,16 @@ class DSPCA:
         if all(isinstance(n, int) for n in self.sparsity_levels):
             K = np.array(self.sparsity_levels, dtype=int)
             for i, k_val in enumerate(K):
-                if k_val <= 0:
-                    raise ValueError(f"Sparsity level at index {i} must be positive, got {k_val}")
                 if k_val > n_features:
                     raise ValueError(f"Sparsity level at index {i} ({k_val}) cannot exceed n_features ({n_features})")
                     
         elif all(isinstance(x, (int, float)) for x in self.sparsity_levels):
-            for i, level in enumerate(self.sparsity_levels):
-                if not (0 < level <= 1):
-                    raise ValueError(f"Float sparsity levels must be in (0, 1], got {level} at index {i}")
-            
             K[0] = int(self.sparsity_levels[0] * self.max_sensors)
             for i in range(1, len(self.sparsity_levels)):
                 K[i] = int(self.sparsity_levels[i] * K[i-1])
             K = np.maximum(K, 1)
         else:
+            # This should theoretically not be reached due to __init__ checks
             raise TypeError("sparsity_levels must contain all integers or all floats")
         
         for i in range(1, len(K)):
