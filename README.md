@@ -50,8 +50,8 @@ X = np.random.rand(100, 50)
 # Initialize DSPCA
 # n_components: number of PCs to compute
 # sparsity_levels: number of features to keep for each PC (must be decreasing)
-# max_sensors: maximum total features to use across all components
-model = DSPCA(n_components=2, sparsity_levels=[10, 5], max_sensors=15)
+# max_sensors: maximum total features to use across all components (optional, default=None)
+model = DSPCA(n_components=2, sparsity_levels=[10, 5], max_sensors=None)
 
 # Fit the model
 model.fit(X)
@@ -68,7 +68,6 @@ print(f"Selected features for PC1: {model.components_[0]}")
 
 Future releases will focus on the following improvements:
 
-- **MNIST Example**: Demonstrate performance on real-world image data to showcase sparsity.
 - **Visualization Tools**: Add built-in plotting utilities for explained variance and feature selection paths.
 - **Scikit-learn Compatibility**: Ensure full compatibility with `Pipeline` and `GridSearchCV`.
 - **Performance Optimization**: Further optimize Forward Variable Selection (FVS) and Backward Variable Elimination (BVE) for very large datasets (e.g. Bayesian Optimization, Genetic Algorithm).

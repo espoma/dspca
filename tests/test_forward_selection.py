@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from dspca import DSPCA
 
 class TestForwardVariableSelection(unittest.TestCase):
+    """Test the Forward Variable Selection (FVS) method of the DSPCA class."""
     
     def setUp(self):
         self.dspca = DSPCA(n_components=2, sparsity_levels=[2, 1], max_sensors=5)

@@ -7,7 +7,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from dspca import DSPCA
 
 class TestDSPCAFitTransform(unittest.TestCase):
+    """Test the fit_transform method of the DSPCA class."""
     def test_fit_transform(self):
+        """Test that fit_transform is equivalent to calling fit then transform."""
         X = np.random.randn(10, 10)
         dspca = DSPCA(n_components=2, sparsity_levels=[5, 3], max_sensors=8)
         X_transformed = dspca.fit_transform(X)

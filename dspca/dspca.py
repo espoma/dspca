@@ -36,8 +36,9 @@ class DSPCA:
         - Must be strictly decreasing and match n_components in length.
         If None, must be set before calling fit().
         
-    max_sensors : int
-        Maximum number of sensors (features) to use to build all the new principal components. Must be a positive integer.
+    max_sensors : int, optional
+        Maximum number of sensors (features) to use to build all the new principal components. 
+        If None, all features in the input data can be used. Must be a positive integer if provided.
 
     Attributes
     ----------
@@ -78,7 +79,7 @@ class DSPCA:
         self,
         n_components: int,
         sparsity_levels: Optional[Union[List[int], List[float]]],
-        max_sensors: int 
+        max_sensors: Optional[int] = None
     ) -> None:
         """
         Initialize the DSPCA model.
@@ -91,8 +92,8 @@ class DSPCA:
         sparsity_levels : list of int or list of float, optional
             Sparsity levels for each component.
             
-        max_sensors : int
-            Maximum number of sensors to use.
+        max_sensors : int, optional
+            Maximum number of sensors to use. If None, all features can be used.
             
         Raises
         ------
@@ -114,10 +115,11 @@ class DSPCA:
                 "sparsity_levels must be a either a list of all integers or a list of all floats"
             )
 
-        if not isinstance(max_sensors, int) or max_sensors <= 0:
-            raise ValueError(
-                f"max_sensors must be a positive integer, got {max_sensors}"
-            )
+        if max_sensors is not None:
+            if not isinstance(max_sensors, int) or max_sensors <= 0:
+                raise ValueError(
+                    f"max_sensors must be a positive integer, got {max_sensors}"
+                )
 
         if any(sparsity_levels[i] <= 0 for i in range(len(sparsity_levels))):
             raise ValueError(
@@ -141,7 +143,7 @@ class DSPCA:
                         "Sparsity levels as integers should be strictly decreasing with the components"
                     )
 
-        if (max(sparsity_levels) > max_sensors):
+        if max_sensors is not None and (max(sparsity_levels) > max_sensors):
             raise ValueError(
                 f"Sparsity levels for any given component cannot include a number of features larger than max_sensors: {max_sensors}"
             )
@@ -375,7 +377,9 @@ class DSPCA:
         current_variance : float
             Variance of the current set V.
         threshold_variance : float
-            Variance to beat (typically variance of the set before FVS added a feature).
+            Variance to beat (variance of the set before FVS added the k-th feature).
+            If a subset of size k-1 is found with variance > threshold_variance, 
+            it indicates a better combination exists for this sparsity level.
             
         Returns
         -------
@@ -421,12 +425,30 @@ class DSPCA:
     def fit(self, X: Union[np.ndarray, pd.DataFrame]) -> 'DSPCA':
         """
         Fit the DSPCA model to the data.
+        
+        Parameters
+        ----------
+        X : np.ndarray or pd.DataFrame of shape (n_samples, n_features)
+            Training data.
+            
+        Returns
+        -------
+        self : object
+            Returns the instance itself.
+            
+        Raises
+        ------
+        ValueError
+            If X has invalid shape, contains NaN/Inf, or sparsity_levels
+            is not properly configured.
+        TypeError
+            If X is not a numpy array or pandas DataFrame.
         """
         # ... (validation code omitted for brevity, assumes it exists upstream) ...
         # Validate data
         X_array = self._validate_data(X)
 
-        if self.max_sensors < self.n_components:
+        if self.max_sensors is not None and self.max_sensors < self.n_components:
             import warnings
             warnings.warn(
                 f"max_sensors ({self.max_sensors}) is less than n_components ({self.n_components}). "
@@ -472,7 +494,9 @@ class DSPCA:
                     raise ValueError(f"Sparsity level at index {i} ({k_val}) cannot exceed n_features ({n_features})")
                     
         elif all(isinstance(x, (int, float)) for x in self.sparsity_levels):
-            K[0] = int(self.sparsity_levels[0] * self.max_sensors)
+            # If max_sensors is None, use n_features as the base for proportions
+            base_sensors = self.max_sensors if self.max_sensors is not None else n_features
+            K[0] = int(self.sparsity_levels[0] * base_sensors)
             for i in range(1, len(self.sparsity_levels)):
                 K[i] = int(self.sparsity_levels[i] * K[i-1])
             K = np.maximum(K, 1)
@@ -506,7 +530,7 @@ class DSPCA:
             # Select features for this component
             while k[j] < K[j]:
                 # Determine candidate features
-                if len(total_used_sensors) < self.max_sensors:
+                if self.max_sensors is None or len(total_used_sensors) < self.max_sensors:
                     candidate_variables_idx = list(set(available_sensors) - set(V))
                 else:
                     candidate_variables_idx = list(set(total_used_sensors) - set(V))

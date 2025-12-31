@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from dspca import DSPCA
 
 class TestBackwardVariableElimination(unittest.TestCase):
+    """Test the Backward Variable Elimination (BVE) method of the DSPCA class."""
     
     def setUp(self):
         # Initialize with valid sparsity_levels to avoid ValueError in __init__
@@ -17,6 +18,7 @@ class TestBackwardVariableElimination(unittest.TestCase):
         self.dspca._compute_max_variance = MagicMock()
 
     def test_basic_elimination(self):
+        """Test that a feature is correctly eliminated when it improves variance."""
         X = np.random.rand(100, 50)
         V = [0, 1, 2]
         current_var = 35.0
@@ -39,6 +41,7 @@ class TestBackwardVariableElimination(unittest.TestCase):
         self.assertEqual(self.dspca._compute_max_variance.call_count, 3)
 
     def test_elimination_with_no_features(self):
+        """Test that elimination handles empty feature sets gracefully."""
         X = np.random.rand(100, 50)
         V = []
         current_var = 5.0
@@ -52,6 +55,7 @@ class TestBackwardVariableElimination(unittest.TestCase):
         self.assertEqual(new_Var, 5.0)
 
     def test_elimination_with_one_feature(self):
+        """Test that elimination handles sets with only one feature (no elimination possible)."""
         X = np.random.rand(100, 50)
         V = [0]
         current_var = 5.0
@@ -65,6 +69,7 @@ class TestBackwardVariableElimination(unittest.TestCase):
         self.assertEqual(new_Var, 5.0)
 
     def test_no_elimination(self):
+        """Test that no feature is eliminated if no subset improves variance."""
         X = np.random.rand(100, 50)
         V = [0, 1, 2]
         current_var = 28.0

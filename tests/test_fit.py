@@ -26,6 +26,23 @@ class TestDSPCAFit(unittest.TestCase):
         # 10 samples, 20 features
         self.X = np.random.randn(10, 20)
 
+    def test_fit_max_sensors_none_vs_fixed(self):
+        """Test that max_sensors=None allows more features than a fixed max_sensors."""
+        X = np.random.randn(10, 20)
+        
+        # Case 1: max_sensors=5
+        dspca_fixed = DSPCA(n_components=2, sparsity_levels=[5, 3], max_sensors=5)
+        dspca_fixed.fit(X)
+        all_used_fixed = set().union(*dspca_fixed.components_)
+        self.assertLessEqual(len(all_used_fixed), 5)
+        
+        # Case 2: max_sensors=None
+        # Sparsity levels [10, 5] would normally use 10-15 features
+        dspca_none = DSPCA(n_components=2, sparsity_levels=[10, 5], max_sensors=None)
+        dspca_none.fit(X)
+        all_used_none = set().union(*dspca_none.components_)
+        self.assertGreaterEqual(len(all_used_none), 10)
+
     def test_fit_valid_numpy(self):
         """Test fit with valid numpy array."""
         self.dspca.fit(self.X)
@@ -147,6 +164,30 @@ class TestDSPCAFit(unittest.TestCase):
         with self.assertWarns(UserWarning) as cm:
             dspca.fit(self.X)
         self.assertIn("max_sensors (2) is less than n_components (3)", str(cm.warning))
+
+    def test_fit_max_sensors_none(self):
+        """Test that fit works correctly when max_sensors is None."""
+        # With max_sensors=None, all features are available
+        dspca = DSPCA(n_components=2, sparsity_levels=[10, 5], max_sensors=None)
+        dspca.fit(self.X)
+        
+        self.assertEqual(len(dspca.components_), 2)
+        self.assertEqual(len(dspca.components_[0]), 10)
+        self.assertEqual(len(dspca.components_[1]), 5)
+        # Check that all selected features are within range
+        for component in dspca.components_:
+            for idx in component:
+                self.assertTrue(0 <= idx < self.X.shape[1])
+
+    def test_fit_max_sensors_none_proportions(self):
+        """Test that proportions work correctly when max_sensors is None."""
+        # 0.5 of 20 features = 10 features for first component
+        # 0.5 of 10 features = 5 features for second component
+        dspca = DSPCA(n_components=2, sparsity_levels=[0.5, 0.5], max_sensors=None)
+        dspca.fit(self.X)
+        
+        self.assertEqual(len(dspca.components_[0]), 10)
+        self.assertEqual(len(dspca.components_[1]), 5)
 
 if __name__ == '__main__':
     unittest.main()

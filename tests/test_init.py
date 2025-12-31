@@ -72,5 +72,12 @@ class TestDSPCAInit(unittest.TestCase):
         self.assertEqual(dspca_float.sparsity_levels, [0.5, 0.2])
         self.assertEqual(dspca_float.max_sensors, 20)
 
+    def test_init_max_sensors_none(self):
+        """Test that initializing DSPCA with max_sensors=None works correctly."""
+        dspca = DSPCA(n_components=2, sparsity_levels=[10, 5], max_sensors=None)
+        self.assertEqual(dspca.n_components, 2)
+        self.assertEqual(dspca.sparsity_levels, [10, 5])
+        self.assertIsNone(dspca.max_sensors)
+
 if __name__ == '__main__':
     unittest.main()
